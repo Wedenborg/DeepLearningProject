@@ -7,7 +7,7 @@ from toolbox_02450 import gausKernelDensity
 from sklearn.neighbors import NearestNeighbors
 
 # load data from Matlab data file
-matdata = loadmat('../Data/digits.mat')
+matdata = loadmat('digits.mat')
 X = np.matrix(matdata['X'])
 y = np.matrix(matdata['y'])
 N, M = np.shape(X)
