@@ -6,11 +6,13 @@ from PIL import Image, ImageOps
 from skimage.io import imread
 from skimage.transform import resize
 from sklearn.preprocessing import LabelEncoder
-
 import warnings
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    from sklearn.cross_validation import StratifiedShuffleSplit
+    #from sklearn.cross_validation import StratifiedShuffleSplit
+    # cross_validation -> now called: model_selection
+    # https://stackoverflow.com/questions/30667525/importerror-no-module-named-sklearn-cross-validation
+    from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 
 
 def onehot(t, num_classes):
@@ -18,6 +20,7 @@ def onehot(t, num_classes):
     for row, col in enumerate(t):
         out[int(row), int(col)] = 1
     return out
+
 
 def pad2square(img):
     img_shape = img.shape
@@ -28,6 +31,7 @@ def pad2square(img):
     img_as_img = Image.fromarray(img)
     new_img = ImageOps.expand(img_as_img, padding)
     return np.array(new_img)
+
 
 class load_data():
     # data_train, data_test and le are public
@@ -125,6 +129,7 @@ class load_data():
                 data['ids'][i] = key
         return data
 
+    
 class batch_generator():
     def __init__(self, data, batch_size=64, num_classes=99,
                  num_iterations=5e3, num_features=64, seed=42, val_size=0.1):
@@ -138,15 +143,32 @@ class batch_generator():
         self._num_iterations = num_iterations
         self._num_features = num_features
         self._seed = seed
-        self._val_size = 0.1
+        self._val_size = val_size
         self._valid_split()
 
     def _valid_split(self):
-        self._idcs_train, self._idcs_valid = next(iter(
-            StratifiedShuffleSplit(self._train['ts'],
-                                   n_iter=1,
-                                   test_size=self._val_size,
-                                   random_state=self._seed)))
+        #from sklearn.cross_validation import StratifiedShuffleSplit
+        # cross_validation -> now called: model_selection
+        # https://stackoverflow.com/questions/30667525/importerror-no-module-named-sklearn-cross-validation
+    
+        #self._idcs_train, self._idcs_valid =next(iter(
+        #    StratifiedShuffleSplit(#self._train['ts'],
+        #                           n_iter=1, # Changed to n_splits in model_selection
+        #                           #n_splits=1,
+        #                           test_size=self._val_size,
+        #                           random_state=self._seed)))
+        
+        # Updated to use: model_selection
+        sss = StratifiedShuffleSplit(
+            n_splits=1,
+            test_size=self._val_size,
+            random_state=self._seed
+        ).split(
+            np.zeros(self._train['ts'].shape),  # Needed in StratifiedShuffleSplit for nothing...
+            self._train['ts']
+        )
+        self._idcs_train, self._idcs_valid = next(iter(sss))
+        
     def _shuffle_train(self):
         np.random.shuffle(self._idcs_train)
 
@@ -164,7 +186,7 @@ class batch_generator():
         return batch_holder
 
     def gen_valid(self):
-        batch = self._batch_init(purpose='train')
+        batch = self._batch_init(purpose='valid')
         i = 0
         for idx in self._idcs_valid:
             batch['margins'][i] = self._train['margins'][idx]
@@ -200,8 +222,7 @@ class batch_generator():
                 batch = self._batch_init(purpose='test')
                 i = 0
         if i != 0:
-            yield batch, i
-            
+            yield batch, i       
 
     def gen_train(self):
         batch = self._batch_init(purpose='train')
